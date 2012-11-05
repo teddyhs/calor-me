@@ -56,6 +56,25 @@ menu a:hover {
 }
 
 /*
+ * Landscape mode
+ */
+@media screen and (orientation: landscape) {
+  body nav {
+    text-align: left;
+    vertical-align: top;
+  }
+  body nav, menu {
+    display: inline-block;
+  }
+  div.contents {
+    display: inline-block;
+  }
+  menu a {
+    display: block;
+  }
+}
+
+/*
  * Application pages (tab panels)
  */
 section[aria-role=tabpanel] {
@@ -108,11 +127,13 @@ iframe.person-meter {
 .add-data-group button {
   display: inline-block;
   width: 40%;
+  max-width: 7em;
+  min-width: 5em;
   min-height: 2em;
 
   color: white;
   font-weight: bold;
-  font-size: 2em;
+  font-size: 1.2em;
   text-shadow: 1px 1px 0 black;
   
   border-radius: 25px;
@@ -126,6 +147,12 @@ iframe.person-meter {
   font-size: 2em;
   display: block;
   margin-bottom: -0.25em;
+}
+/* Shrink on resize */
+@media screen and (max-width: 280px) {
+  .add-data-group button {
+    font-size: 16px;
+  }
 }
 /* Add a blue gradient to the back of the add food button */
 button.addFood {
@@ -164,6 +191,17 @@ div.graphic-container {
   /* Don't allow pointer events in case this ends up overlapping the buttons
    * below. */
   pointer-events: none;
+}
+/* Scale with screen */
+@media screen and (max-width: 290px) {
+  .text-summary {
+    font-size: 13px;
+  }
+}
+@media screen and (max-width: 200px) {
+  .text-summary {
+    font-size: 10px;
+  }
 }
 /* Text styling for the remaining text */
 .net-summary {
