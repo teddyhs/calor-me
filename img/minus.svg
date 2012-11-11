@@ -1,0 +1,14 @@
+<svg width="640" height="480" xmlns="http://www.w3.org/2000/svg">
+ <!-- Created with SVG-edit - http://svg-edit.googlecode.com/ -->
+ <defs>
+  <linearGradient y1="0.296875" x1="0.980469" spreadMethod="pad" y2="1" x2="1" id="svg_19">
+   <stop offset="0" stop-opacity="0.996094" stop-color="#7f00ff"/>
+   <stop offset="1" stop-opacity="0.996094" stop-color="#deedde"/>
+  </linearGradient>
+ </defs>
+ <g>
+  <title>MINUS</title>
+  <rect id="svg_14" height="479.000057" width="639" y="-2.000019" x="2" stroke-width="5" stroke="#000000" fill="url(#svg_19)"/>
+  <rect id="svg_16" height="1" width="0" y="114" x="130" stroke-width="5" stroke="#000000" fill="#00ff7f"/>
+ </g>
+</svg>

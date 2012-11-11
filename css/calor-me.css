@@ -129,19 +129,13 @@ iframe.person-meter {
 }
 /* Add a blue gradient to the back of the add food button */
 button.addFood {
-  background: -moz-gradient(30deg, #101e9b, #2ea9ef);
-  background: -webkit-linear-gradient(30deg, #101e9b, #2ea9ef);
-  background: -o-linear-gradient(30deg, #101e9b, #2ea9ef);
-  background: -ms-linear-gradient(30deg, #101e9b, #2ea9ef);
-  background: linear-gradient(30deg, #101e9b, #2ea9ef);
+  background: url("../img/plus.svg") no-repeat center transparent;
+  color: #FFFFFF;
 }
 /* Add a green gradient to the back of the add exercise button */
 button.addActivity {
-  background: -moz-linear-gradient(30deg, #105432, #3eaf2c);
-  background: -webkit-linear-gradient(30deg, #105432, #3eaf2c);
-  background: -o-linear-gradient(30deg, #105432, #3eaf2c);
-  background: -ms-linear-gradient(30deg, #105432, #3eaf2c);
-  background: linear-gradient(30deg, #105432, #3eaf2c);
+  background: url("../img/minus.svg") no-repeat center transparent;
+  color: #FFFFFF;
 }
 /* Position text labels over graphic.
  * First make a point of reference by marking the container as relative. */
