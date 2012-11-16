@@ -30,6 +30,7 @@ function init() {
   initSummary();
   initLog();
   initSettings();
+  initPreFillData();
 }
 window.addEventListener("load", init, false);
 
@@ -249,6 +250,88 @@ function initSettings() {
 function onChangeGender(evt) {
   var figure = document.getElementById("figure");
   figure.contentDocument.setGender(evt.target.value);
+}
+
+/* --------------------------------------
+ *
+ * PRE-FILL DATA
+ *
+ * --------------------------------------*/
+
+var prefillLists = {};
+
+function initPreFillData() {
+  // Foods list
+  var foods = "food-data.json";
+  var foodsList = document.getElementById("foods");
+  fetchPrefillData(foods, foodsList,
+    function(list) {
+      var hash = new Object;
+      for (var i = 0; i < list.length; i++) {
+        hash[list[i][0].trim().toLowerCase()] = list[i][1];
+      }
+      prefillLists.foods = hash;
+    });
+  var foodForm = document.forms.food;
+  foodForm.food.addEventListener("change", calcFood, false);
+  foodForm.quantity.addEventListener("change", calcFood, false);
+}
+
+function fetchPrefillData(url, targetList, onComplete) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', url, true);
+  if (xhr.overrideMimeType) {
+    xhr.overrideMimeType('application/json; charset=utf-8');
+  }
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState == 4) {
+      if (xhr.status == 200 || xhr.status === 0) {
+        fillList(xhr.responseText, targetList, onComplete);
+      } else {
+        console.log("Failed to load " + url);
+      }
+    }
+  };
+  xhr.send(null);
+}
+
+function fillList(jsonData, list, onComplete) {
+  var data = JSON.parse(jsonData);
+  // Check we've got a reasonable list
+  if (!Array.isArray(data) ||
+      data.length < 1 ||
+      !Array.isArray(data[0]) ||
+      typeof data[0][0] !== "string")
+    return;
+  // Clear children of list
+  while (list.hasChildNodes())
+    list.removeChild(list.lastChild);
+  // Add an option for each item in the list
+  for (var i = 0; i < data.length; i++) {
+    var option = document.createElement("OPTION");
+    option.setAttribute("value", data[i][0]);
+    list.appendChild(option);
+  }
+  // Pass the list on
+  if (onComplete) {
+    onComplete(data);
+  }
+}
+
+function calcFood() {
+  var foodForm = document.forms.food;
+  var food = foodForm.food.value.trim().toLowerCase();
+  if (!food)
+    return;
+  var multiplier = prefillLists.foods[food];
+  if (typeof multiplier === "undefined")
+    return;
+  var quantity = parseFloat(foodForm.quantity.value);
+  if (isNaN(quantity))
+    return;
+  // Multiplier is kJ per 100g
+  var result = Math.round(multiplier / 100 * quantity / counter.KJ_PER_KCAL);
+  foodForm['calorie-count'].value = result;
 }
 
 /* --------------------------------------

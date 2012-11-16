@@ -258,10 +258,14 @@ section.add-data {
 section.add-data fieldset {
   border: none;
 }
-/* Put the calculated calorie result on a new line */
-label.calc-result {
-  margin: 0.5em 0;
+/* Make the autofill lists wide since some of the prefill entries are long */
+section.add-data input[list] {
+  width: 80%;
+}
+/* Put the inputs on their own line each */
+section.add-data label {
   display: block;
+  margin: 0.5em auto;
 }
 
 /*

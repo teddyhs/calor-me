@@ -57,16 +57,14 @@
             aria-label="Add food" aria-hidden="true">
             <h2>Add food</h2>
             <!-- The action is to workaround a Safari bug -->
-            <form action="javascript:">
+            <form action="javascript:" name="food">
               <fieldset>
                 <input name="food" list="foods" placeholder="e.g. Apple">
                 <datalist id="foods">
-                  <option>Apple
-                  <option>Donut
                 </datalist>
                 <label> x 
-                  <input type="number" name="quantity" placeholder="e.g. 2"
-                   class="food-quantity">
+                  <input type="number" name="quantity" placeholder="e.g. 200"
+                   class="food-quantity"> g / ml
                 </label>
                 <label class="calc-result"> =
                   <input type="number" name="calorie-count"> kCal
@@ -152,6 +150,13 @@
         </label>
         <label class="radio">
           <input type="radio" name="gender" value="female"> Female
+        </label>
+        <p>Units:</p>
+        <label class="radio">
+          <input type="radio" name="units" value="kCal" checked> calories (kCal)
+        </label>
+        <label class="radio">
+          <input type="radio" name="units" value="kJ"> kilojoules (kJ)
         </label>
       </section>
     </div>
