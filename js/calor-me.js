@@ -400,12 +400,18 @@ CalorieCounter.prototype.addFood = function(food, quantity, amount, unit,
 
 window.indexedDB = window.indexedDB || window.mozIndexedDB ||
                    window.webkitIndexedDB || window.msIndexedDB;
+window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange ||
+                     window.msIDBKeyRange;
 
 CalorieCounter.prototype._doLogTransaction = function(onsuccess) {
   if (!this._db) {
-    var request = window.indexedDB.open("CalorieCounter", 1);
+    var request = window.indexedDB.open("CalorieCounter", 2);
     request.onsuccess = function(event) {
       this._db = request.result;
+      // Set up database-level error logging
+      this._db.onerror = function(event) {
+        console.log(event.target.result);
+      };
       onsuccess(this._db);
     }
     request.onerror = function(event) {
@@ -414,8 +420,12 @@ CalorieCounter.prototype._doLogTransaction = function(onsuccess) {
     }
     request.onupgradeneeded = function(event) {
       this._db = event.target.result;
-      var objectStore =
+      var objectStore = null;
+      if (event.oldVersion < 1) {
         this._db.createObjectStore("log", { autoIncrement: true });
+      }
+      var objectStore = event.target.transaction.objectStore("log");
+      objectStore.createIndex("time", "time", { unique: false });
     }
   } else {
     onsuccess(this._db);
@@ -425,19 +435,37 @@ CalorieCounter.prototype._doLogTransaction = function(onsuccess) {
 CalorieCounter.prototype._addLog = function(log, onsuccess) {
   this._doLogTransaction(
     function(db) {
-      var transaction = db.transaction(["log"], "readwrite");
-      transaction.onerror = function(event) {
-        console.log(event.target.errorCode);
-      };
-      var objectStore = transaction.objectStore("log");
-      var request = objectStore.add(log);
-      request.onsuccess = function(event) {
+      db.transaction(["log"], "readwrite").objectStore("log").add(log).
+        onsuccess = function(event) {
         if (onsuccess) {
           var result = log;
           result.id = event.target.result;
           onsuccess(result);
         }
       };
+    }
+  );
+}
+
+CalorieCounter.prototype._getLogEntriesInRange = function(start, end, onsuccess)
+{
+  var entries = [];
+  this._doLogTransaction(
+    function(db) {
+      var objectStore = db.transaction(["log"]).objectStore("log");
+      var range = end
+                ? IDBKeyRange.bound(start, end, true, false)
+                : IDBKeyRange.lowerBound(start, true);
+      var index = objectStore.index("time");
+      index.openCursor(range).onsuccess = function(event) {
+        var cursor = event.target.result;
+        if (cursor) {
+          entries.push(cursor.value);
+          cursor.continue();
+        } else {
+          onsuccess(entries);
+        }
+      }
     }
   );
 }
