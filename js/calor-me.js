@@ -162,8 +162,15 @@ function resetDialog(dialog) {
 }
 
 function addFood() {
-  // TODO
-  counter.addFood(2000, "kcal");
+  var foodForm = document.forms.food;
+  var food = foodForm.food.value;
+  var quantity = parseFloat(foodForm.quantity.value) || null;
+  var calories = parseFloat(foodForm['calorie-count'].value);
+  counter.addFood(food, quantity, calories, "kcal",
+    function(item) {
+      // XXX update summary table
+      console.log(item);
+    });
   hideDialog(document.getElementById('add-food'));
   updateSummary();
   var rise = document.getElementById('riseSound');
@@ -348,18 +355,19 @@ function calcFood() {
 // offer interfaces for reporting values in calories (actually kilocalories).
 
 CalorieCounter = function() {
-  this.consumed  = 0;
-  this.spent     = 0;
-  this.bmr       = 8000;
+  this.consumedToday = 0;
+  this.spentToday    = 0;
+  this.bmr           = 8000;
+  this._db           = null;
 
   this.__defineGetter__("kjOut", function() {
-    return this.bmr + this.spent;
+    return this.bmr + this.spentToday;
   });
   this.__defineGetter__("kcalOut", function() {
     return this.kjOut / this.KJ_PER_KCAL;
   });
   this.__defineGetter__("kjIn", function() {
-    return this.consumed;
+    return this.consumedToday;
   });
   this.__defineGetter__("kcalIn", function() {
     return this.kjIn / this.KJ_PER_KCAL;
@@ -369,13 +377,67 @@ CalorieCounter = function() {
 CalorieCounter.prototype.KJ_PER_KCAL = 4.2;
 
 CalorieCounter.prototype.addActivity = function(amount, unit) {
-  if (typeof unit !== "undefined" && unit.toLowerCase === "kcal")
+  if (typeof unit !== "undefined" && unit.toLowerCase() === "kcal")
     amount *= this.KJ_PER_KCAL;
-  this.spent += amount;
+  this.spentToday += amount;
 }
 
-CalorieCounter.prototype.addFood = function(amount, unit) {
-  if (typeof unit !== "undefined" && unit.toLowerCase === "kcal")
+CalorieCounter.prototype.addFood = function(food, quantity, amount, unit,
+  onsuccess) {
+  if (typeof unit !== "undefined" && unit.toLowerCase() === "kcal")
     amount *= this.KJ_PER_KCAL;
-  this.consumed += amount;
+  this.consumedToday += amount;
+
+  log = {
+    type: "food",
+    food: food,
+    quantity: quantity,
+    kj: amount,
+    time: Date.now()
+  };
+  this._addLog(log, onsuccess);
+}
+
+window.indexedDB = window.indexedDB || window.mozIndexedDB ||
+                   window.webkitIndexedDB || window.msIndexedDB;
+
+CalorieCounter.prototype._doLogTransaction = function(onsuccess) {
+  if (!this._db) {
+    var request = window.indexedDB.open("CalorieCounter", 1);
+    request.onsuccess = function(event) {
+      this._db = request.result;
+      onsuccess(this._db);
+    }
+    request.onerror = function(event) {
+      // Just log the error and forget about saving
+      console.log(event.target.errorCode);
+    }
+    request.onupgradeneeded = function(event) {
+      this._db = event.target.result;
+      var objectStore =
+        this._db.createObjectStore("log", { autoIncrement: true });
+    }
+  } else {
+    onsuccess(this._db);
+  }
+}
+
+CalorieCounter.prototype._addLog = function(log, onsuccess) {
+  this._doLogTransaction(
+    function(db) {
+      var transaction = db.transaction(["log"], "readwrite");
+      transaction.onerror = function(event) {
+        console.log(event.target.errorCode);
+      };
+      var objectStore = transaction.objectStore("log");
+      var request = objectStore.add(log);
+      request.onsuccess = function(event) {
+        if (onsuccess) {
+          var result = log;
+          result.id = event.target.result;
+          onsuccess(result);
+        }
+      };
+    }
+  );
 }
