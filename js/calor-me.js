@@ -501,17 +501,13 @@ function calcFood() {
  *
  * --------------------------------------*/
 
-// TODO
-// This is all placeholder code for the moment.
-// The calculation of the BMR needs to be based on the settings etc.
-//
 // One note is that internally everything is represented in metric (kJ) but we
 // offer interfaces for reporting values in calories (actually kilocalories).
 
 CalorieCounter = function() {
   this._consumedToday = 0;
   this._spentToday    = 0;
-  this._bmr           = 8000;
+  this._bmr           = 7340;
   this._db            = null;
   this._weight        = null;
   this._height        = null;
@@ -542,21 +538,21 @@ CalorieCounter = function() {
   });
   this.__defineSetter__("height", function(height) {
     this._setSetting("height", height);
-    // XXX Re-calculate BMR
+    this.updateBMR();
   });
   this.__defineGetter__("dob", function() {
     return this._dob;
   });
   this.__defineSetter__("dob", function(dob) {
     this._setSetting("dob", dob);
-    // XXX Re-calculate BMR
+    this.updateBMR();
   });
   this.__defineGetter__("gender", function() {
     return this._gender;
   });
   this.__defineSetter__("gender", function(dob) {
     this._setSetting("gender", dob);
-    // XXX Re-calculate BMR
+    this.updateBMR();
   });
 
   this.init();
@@ -627,7 +623,7 @@ CalorieCounter.prototype._setWeight = function(weight) {
     }
   );
   this._weight = weight;
-  // XXX Re-calculate BMR
+  this.updateBMR();
 }
 
 CalorieCounter.prototype._setSetting = function(name, value) {
@@ -820,8 +816,8 @@ CalorieCounter.prototype._arrangeFullLog =
       currentWeight = weights.shift().weight;
     }
     day.weight = currentWeight;
-    // XXX Calculate the BMR for each day in the range
-    day.bmr = 8000;
+    day.bmr =
+      this.calcBMR(day.weight, this.height, this.dob, this.gender, day.date);
     // Add activities
     day.activities = [];
     day.kjOut = day.bmr;
@@ -839,4 +835,30 @@ CalorieCounter.prototype._arrangeFullLog =
     result.push(day);
   }
   onsuccess(result);
+}
+
+// weight (kg)
+// height (cm)
+// dob (yyyy-mm-dd)
+// gender (male|female)
+// date (the date to calculate the age relative to. If not defined will default
+// to the current date
+CalorieCounter.prototype.calcBMR = function(weight, height, dob, gender, date) {
+  var isMale = !(gender && gender.trim().toLowerCase() === "female");
+  // These are some fairly rough averages for adults
+  weight = weight ? weight : (isMale ? 75 : 70);
+  height = height ? height : (isMale ? 160 : 170);
+  // If there's no valid dob we just use 20 (for no good reason)
+  var oneYear = 365.26*24*60*60*1000;
+  date = date ? date : Date.now();
+  var age = dob ? (date - Date.parse(dob)) / oneYear : 20;
+  var bmrkCal = isMale
+    ? 13.397 * weight + 4.799 * height - 5.677 * age + 88.362
+    : 9.247 * weight + 3.098 * height - 4.33 * age + 447.593;
+  return bmrkCal * this.KJ_PER_KCAL;
+}
+
+CalorieCounter.prototype.updateBMR = function() {
+  this._bmr = this.calcBMR(this.weight, this.height, this.dob, this.gender);
+  // XXX Trigger update of stuff
 }
