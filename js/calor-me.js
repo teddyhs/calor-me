@@ -388,6 +388,31 @@ function initSettings() {
     var radio = genderRadios[i];
     radio.addEventListener("change", onChangeGender, false);
   }
+
+  // If the browser is capable of installing Web apps, enable the button
+  if (navigator.mozApps) {
+    installButton = document.getElementById("installApp");
+    installButton.style.display = 'block';
+    // When the app is already installed we need to disable the button
+    // accordingly
+    var markInstalled = function() {
+      installButton.textContent = "Installed";
+      installButton.disabled = true;
+    }
+    // Add listener for clicks on the button
+    installButton.addEventListener("click",
+      function(evt) {
+        navigator.mozApps.install("http://calorme.mozlabs.jp/calor-me.webapp").
+          onsuccess = markInstalled;
+        evt.preventDefault();
+      }, false);
+    // Check if we're already installed
+    var request = navigator.mozApps.getSelf();
+    request.onsuccess = function() {
+      if (request.result)
+        markInstalled();
+    }
+  }
 }
 
 function onChangeHeight(evt) {

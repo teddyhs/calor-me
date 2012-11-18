@@ -1,0 +1,11 @@
+CACHE MANIFEST
+# v2 2012-11-18
+# No need to include index.html since it is included automatically
+/food-data.json
+/audio/fall.ogg
+/audio/fall.wav
+/audio/rise.ogg
+/audio/rise.wav
+/css/calor-me.css
+/img/figure.svg
+/js/calor-me.js

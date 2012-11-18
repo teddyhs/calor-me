@@ -342,3 +342,8 @@ details * {
 #settings input[name=dob] {
   width: 7em;
 }
+#settings button.install {
+  /* Disable the display of the install button unless we detect a browser that
+   * is capable of installing web apps. */
+  display: none;
+}

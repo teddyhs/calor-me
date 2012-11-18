@@ -1,0 +1,4 @@
+AddType text/cache-manifest appcache
+ExpiresActive On
+ExpiresByType text/cache-manifest "access plus 0 seconds"
+AddType application/x-web-app-manifest+json webapp
