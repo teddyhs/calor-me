@@ -3,14 +3,14 @@
   "description": "Track your daily calorie consumption so you never lose precious fat again",
   "launch_path": "/",
   "icons": {
-    "16": "/icons/16.png",
-    "30": "/icons/30.png",
-    "32": "/icons/32.png",
-    "48": "/icons/48.png",
-    "60": "/icons/60.png",
-    "64": "/icons/64.png",
-    "128": "/icons/128.png",
-    "256": "/icons/256.png"
+    "16": "/img/icons/16.png",
+    "30": "/img/icons/30.png",
+    "32": "/img/icons/32.png",
+    "48": "/img/icons/48.png",
+    "60": "/img/icons/60.png",
+    "64": "/img/icons/64.png",
+    "128": "/img/icons/128.png",
+    "256": "/img/icons/256.png"
   },
   "developer": {
     "name": "Brian Birtles",
