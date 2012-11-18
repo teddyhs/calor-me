@@ -22,8 +22,18 @@ function init() {
   // Update once it is ready
   counter.oninit = function() {
     document.querySelector("input[name=weight]").value = counter.weight;
-    // XXX update height
-    // XXX update sex (incl. diagram)
+    document.querySelector("input[name=height]").value = counter.height;
+    document.querySelector("input[name=dob]").value    = counter.dob;
+    if (counter.gender) {
+      var genderRadios =
+        document.querySelectorAll("input[type=radio][name=gender]");
+      for (var i = 0; i < genderRadios.length; i++) {
+        var radio = genderRadios[i];
+        var value = radio.value.trim().toLowerCase();
+        radio.checked = !!(value === counter.gender);
+      }
+      setDiagramGender(counter.gender);
+    }
     updateSummary();
   };
 
@@ -177,7 +187,7 @@ function onChangeWeight(event) {
   var weight = parseFloat(event.target.value);
   if (!weight)
     return;
-  counter.setWeight(weight);
+  counter.weight = weight;
   updateSummary();
 }
 
@@ -230,6 +240,10 @@ function getClassLevel(level) {
     ? "ok" : "bad";
 }
 
+function setDiagramGender(gender) {
+  document.getElementById("figure").contentDocument.setGender(gender);
+}
+
 /* --------------------------------------
  *
  * LOG
@@ -262,6 +276,12 @@ function initLog() {
  * --------------------------------------*/
 
 function initSettings() {
+  // Listen to changes in height, dob
+  document.querySelector("input[name=height]").addEventListener("change",
+    onChangeHeight, false);
+  document.querySelector("input[name=dob]").addEventListener("change",
+    onChangeDOB, false);
+
   // Listen to changes to gender
   var genderRadios =
     document.querySelectorAll("input[type=radio][name=gender]");
@@ -269,14 +289,28 @@ function initSettings() {
     var radio = genderRadios[i];
     radio.addEventListener("change", onChangeGender, false);
   }
+}
 
-  // TODO Need to store the gender, set the radio buttons and update the
-  // diagram accordingly
+function onChangeHeight(evt) {
+  var height = parseFloat(evt.target.value);
+  if (!height)
+    return;
+  counter.height = height;
+  // XXX Update the log and summary
+}
+
+function onChangeDOB(evt) {
+  var dob = evt.target.value;
+  if (!dob)
+    return;
+  counter.dob = dob;
+  // XXX Update the log and summary
 }
 
 function onChangeGender(evt) {
-  var figure = document.getElementById("figure");
-  figure.contentDocument.setGender(evt.target.value);
+  counter.gender = evt.target.value.toLowerCase().trim();
+  setDiagramGender(evt.target.value);
+  // XXX Update the log and summary
 }
 
 /* --------------------------------------
@@ -375,23 +409,54 @@ function calcFood() {
 // offer interfaces for reporting values in calories (actually kilocalories).
 
 CalorieCounter = function() {
-  this.consumedToday = 0;
-  this.spentToday    = 0;
-  this.bmr           = 8000;
-  this._db           = null;
-  this.weight        = null;
+  this._consumedToday = 0;
+  this._spentToday    = 0;
+  this._bmr           = 8000;
+  this._db            = null;
+  this._weight        = null;
+  this._height        = null;
+  this._dob           = null;
+  this._gender        = null;
 
   this.__defineGetter__("kjOut", function() {
-    return this.bmr + this.spentToday;
+    return this._bmr + this._spentToday;
   });
   this.__defineGetter__("kcalOut", function() {
     return this.kjOut / this.KJ_PER_KCAL;
   });
   this.__defineGetter__("kjIn", function() {
-    return this.consumedToday;
+    return this._consumedToday;
   });
   this.__defineGetter__("kcalIn", function() {
     return this.kjIn / this.KJ_PER_KCAL;
+  });
+
+  this.__defineGetter__("weight", function() {
+    return this._weight;
+  });
+  this.__defineSetter__("weight", function(weight) {
+    this._setWeight(weight);
+  });
+  this.__defineGetter__("height", function() {
+    return this._height;
+  });
+  this.__defineSetter__("height", function(height) {
+    this._setSetting("height", height);
+    // XXX Re-calculate BMR
+  });
+  this.__defineGetter__("dob", function() {
+    return this._dob;
+  });
+  this.__defineSetter__("dob", function(dob) {
+    this._setSetting("dob", dob);
+    // XXX Re-calculate BMR
+  });
+  this.__defineGetter__("gender", function() {
+    return this._gender;
+  });
+  this.__defineSetter__("gender", function(dob) {
+    this._setSetting("gender", dob);
+    // XXX Re-calculate BMR
   });
 
   this.init();
@@ -405,6 +470,7 @@ CalorieCounter.prototype.init = function() {
       var trans = db.transaction(["weightLog", "settings"]);
       if (this.oninit)
         trans.oncomplete = this.oninit;
+      // Get latest recorded weight
       trans.objectStore("weightLog").openCursor(null, "prev").onsuccess =
         function(event) {
         var cursor = event.target.result;
@@ -412,6 +478,16 @@ CalorieCounter.prototype.init = function() {
           this.weight = cursor.value.weight;
         }
       }.bind(this);
+      // Load settings
+      var settings = trans.objectStore("settings");
+      ['height', 'dob', 'gender'].forEach(
+        function(name) {
+          settings.get(name).onsuccess = function(event) {
+            if (typeof event.target.result !== "undefined")
+              this['_' + name] = event.target.result;
+          }.bind(this);
+        }.bind(this)
+      );
     }.bind(this)
   );
 }
@@ -419,14 +495,14 @@ CalorieCounter.prototype.init = function() {
 CalorieCounter.prototype.addActivity = function(amount, unit) {
   if (typeof unit !== "undefined" && unit.toLowerCase() === "kcal")
     amount *= this.KJ_PER_KCAL;
-  this.spentToday += amount;
+  this._spentToday += amount;
 }
 
 CalorieCounter.prototype.addFood = function(food, quantity, amount, unit,
   onsuccess) {
   if (typeof unit !== "undefined" && unit.toLowerCase() === "kcal")
     amount *= this.KJ_PER_KCAL;
-  this.consumedToday += amount;
+  this._consumedToday += amount;
 
   log = {
     type: "food",
@@ -437,8 +513,9 @@ CalorieCounter.prototype.addFood = function(food, quantity, amount, unit,
   this._addLog(log, onsuccess);
 }
 
-CalorieCounter.prototype.setWeight = function(weight) {
-  // XXX Re-calculate BMR
+CalorieCounter.prototype._setWeight = function(weight) {
+  if (this._weight === weight)
+    return;
   var entry = {
     localDate: this._getLocalDate(),
     weight: weight
@@ -449,7 +526,20 @@ CalorieCounter.prototype.setWeight = function(weight) {
         put(entry);
     }
   );
-  this.weight = weight;
+  this._weight = weight;
+  // XXX Re-calculate BMR
+}
+
+CalorieCounter.prototype._setSetting = function(name, value) {
+  if (this['_' + name] === value)
+    return;
+  this._getDb(
+    function(db) {
+      db.transaction(["settings"], "readwrite").objectStore("settings").
+        put(value, name);
+    }
+  );
+  this['_' + name] = value;
 }
 
 window.indexedDB = window.indexedDB || window.mozIndexedDB ||
