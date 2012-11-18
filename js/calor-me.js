@@ -35,6 +35,7 @@ function init() {
       setDiagramGender(counter.gender);
     }
     updateSummary();
+    updateLog();
   };
 
   // Add event handlers to the buttons.
@@ -267,6 +268,105 @@ function initLog() {
         }
       }, false
     );
+}
+
+function updateLog() {
+  var logSection = document.getElementById("log");
+  // Clear log
+  var logs = document.querySelectorAll("#log > details");
+  for (var i = 0; i < logs.length; i++) {
+    logs[i].parentNode.removeChild(logs[i]);
+  }
+  // Get log
+  counter.getLast7Days(function(log) {
+    log = log.reverse();
+    for (var i = 0; i < log.length; i++) {
+      var entry = log[i];
+      var details = document.createElement("details");
+
+      // Create summary element
+      var summary = document.createElement("summary");
+      var overallClass = getLogLevelClass(entry.kjIn / entry.kjOut);
+      summary.classList.add(overallClass);
+      summary.appendChild(getTimeElementForDate(new Date(entry.date)));
+      summary.appendChild(document.createTextNode(", "));
+      var data = getDataElementForKj(entry.total, "kcal");
+      data.classList.add("calorie-balance");
+      data.classList.add(overallClass);
+      summary.appendChild(data);
+      details.appendChild(summary);
+
+      // Add the entries
+      for (var j = 0; j < entry.activities.length; j++) {
+        details.appendChild(getActivityElement(entry.activities[j]));
+      }
+
+      logSection.appendChild(details);
+    }
+  });
+}
+
+function getLogLevelClass(level) {
+  return level < OK_CUTOFF
+    ? "under"
+    : level < BAD_CUTOFF
+    ? "equal" : "plus";
+}
+
+function getTimeElementForDate(utcdate) {
+  function pad(n){return n<10 ? '0'+n : n}
+  var time    = document.createElement("time");
+  var shortDate = utcdate.getUTCFullYear() + '-' +
+                  pad(utcdate.getUTCMonth() + 1) + '-' +
+                  pad(utcdate.getUTCDate());
+  time.setAttribute("datetime", shortDate);
+  time.textContent = utcdate.toLocaleDateString();
+  return time;
+}
+
+function getDataElementForKj(kj, unit) {
+  var kcal = !!(typeof unit !== "undefined" && unit.toLowerCase() === "kcal");
+  var amount = Math.round(kcal ? kj / counter.KJ_PER_KCAL : kj);
+  var units  = kcal ? "kCal" : "kJ";
+  var data = document.createElement("data");
+  data.setAttribute("value", amount);
+  data.textContent = amount + " " + units;
+  return data;
+}
+
+function getActivityElement(activity) {
+  var div = document.createElement("div");
+  div.classList.add("log-entry");
+  var plusMinusClass = activity.kj >= 0 ? "plus" : "minus";
+  div.classList.add(plusMinusClass);
+
+  // Activity name
+  var span = document.createElement("span");
+  span.classList.add(activity.type);
+  var name = activity.type === "food" ? activity.food : activity.activity;
+  if (!name)
+    name = "(Something)";
+  span.textContent = name;
+  div.appendChild(span);
+  div.appendChild(document.createTextNode(" "));
+
+  // Quantity
+  /* Skipping for now until we decide how to handle this
+  if (activity.type === "food") {
+    var quantity = document.createElement("data");
+    quantity.setAttribute("value", activity.quantity);
+    quantity.textContent = activity.quantity;
+    div.appendChild(quantity);
+  }
+  */
+
+  // kJ
+  var data = getDataElementForKj(activity.kj, "kcal");
+  data.classList.add("calorie-count");
+  data.classList.add(plusMinusClass);
+  div.appendChild(data);
+
+  return div;
 }
 
 /* --------------------------------------
@@ -605,23 +705,44 @@ CalorieCounter.prototype._getLocalDate = function(log, onsuccess) {
   // Calculate the date only (minus time component) in local time and convert to
   // UTC.
   var d = new Date();
-  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+// start and end are dates in UTC
 CalorieCounter.prototype._getLogEntriesInRange = function(start, end, onsuccess)
 {
   var entries = [];
   this._getDb(
     function(db) {
       var objectStore = db.transaction(["log"]).objectStore("log");
+      // The start and end dates given are UTC but we want to include
+      // activities that within those dates in *local* time when they were
+      // recorded. So we need to extend the range while we do the fetch by 12
+      // hours either side and then, before we add any activities to our result,
+      // check if the local time is within the range.
+      //
+      // Why don't get just store local times to begin with? Well, we want to
+      // preserve the sequence in which items were added, even when changing
+      // time zones.
+      //
+      // For weights we don't bother since we only store one weight per day.
+      // There will be some obscure situations where this doesn't work, but
+      // probably not often enough we need to worry about it.
+      var twelveHours = 12*60*60*1000;
+      var effectiveStart = start - twelveHours;
+      var effectiveEnd   = end ? end + twelveHours : null;
       var range = end
-                ? IDBKeyRange.bound(start, end, true, false)
-                : IDBKeyRange.lowerBound(start, true);
+                ? IDBKeyRange.bound(effectiveStart, effectiveEnd, true, false)
+                : IDBKeyRange.lowerBound(effectiveStart, true);
       var index = objectStore.index("time");
       index.openCursor(range).onsuccess = function(event) {
         var cursor = event.target.result;
         if (cursor) {
-          entries.push(cursor.value);
+          // Check the event actually did happen in the specified range
+          if (cursor.value.localDate > start &&
+              (!end || cursor.value.localDate < end)) {
+            entries.push(cursor.value);
+          }
           cursor.continue();
         } else {
           onsuccess(entries);
@@ -629,4 +750,93 @@ CalorieCounter.prototype._getLogEntriesInRange = function(start, end, onsuccess)
       }
     }
   );
+}
+
+CalorieCounter.prototype._getWeightsForRange = function(start, end, onsuccess) {
+  // Array of dates and weights
+  // We go through the weights backwards from 'end' until 'start' or 1 item
+  // past 'start' if there is one.
+  // This is because weights are only stored when changed and they apply
+  // forwards from that point
+  var storedWeights = [];
+  this._getDb(
+    function(db) {
+      var objectStore = db.transaction(["weightLog"]).objectStore("weightLog");
+      var range = end ? IDBKeyRange.upperBound(end, true) : null;
+      objectStore.openCursor(range, "prev").onsuccess = function(event) {
+        var cursor = event.target.result;
+        var cont = false;
+        if (cursor) {
+          storedWeights.push(cursor.value);
+          if (cursor.value.localDate > start) {
+            cont = true;
+            cursor.continue();
+          }
+        }
+        if (!cont)
+          onsuccess(storedWeights.reverse());
+      };
+    }
+  );
+}
+
+// This is just a temporary convenience method until we find a better way of
+// handling dates
+CalorieCounter.prototype.getLast7Days = function(onsuccess) {
+  var oneDay = 24*60*60*1000;
+  var start  = this._getLocalDate() - 6 * oneDay;
+  var end    = start + 7 * oneDay;
+  this._getFullLogForRange(start, end, onsuccess);
+};
+
+CalorieCounter.prototype._getFullLogForRange = function(start, end, onsuccess) {
+  this._getLogEntriesInRange(start, end, function(entries) {
+    this._getWeightsForRange(start, end, function(weights) {
+      this._arrangeFullLog(start, end, entries, weights, onsuccess);
+    }.bind(this));
+  }.bind(this));
+}
+
+CalorieCounter.prototype._arrangeFullLog =
+  function(start, end, activities, weights, onsuccess) {
+  var result = [];
+  // We have the activities and weights.
+  // Now to arrange them into something useful.
+  var oneDay = 24*60*60*1000;
+  var numDays = (end - start) / oneDay;
+  var currentDate = start;
+  // Get the initial weight
+  var currentWeight = null;
+  while (weights.length && weights[0].localDate <= start) {
+    currentWeight = weights.shift().weight;
+  }
+  var effectiveEnd = end ? end : this._getLocalDate() + oneDay;
+  for (var currentDate = start; currentDate < effectiveEnd;
+       currentDate += oneDay) {
+    var day = {};
+    day.date = currentDate;
+    // Set weight
+    if (weights[0].localDate <= currentDate) {
+      currentWeight = weights.shift().weight;
+    }
+    day.weight = currentWeight;
+    // XXX Calculate the BMR for each day in the range
+    day.bmr = 8000;
+    // Add activities
+    day.activities = [];
+    day.kjOut = day.bmr;
+    day.kjIn  = 0;
+    while (activities.length && activities[0].localDate <= currentDate) {
+      var activity = activities.shift();
+      if (activity.type === "food") {
+        day.kjIn += activity.kj;
+      } else {
+        day.kjOut += activity.kj;
+      }
+      day.activities.push(activity);
+    }
+    day.total = day.kjIn - day.kjOut;
+    result.push(day);
+  }
+  onsuccess(result);
 }
