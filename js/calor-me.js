@@ -19,6 +19,14 @@ var BAD_CUTOFF = 1.2;
 function init() {
   counter = new CalorieCounter();
 
+  // Update once it is ready
+  counter.oninit = function() {
+    document.querySelector("input[name=weight]").value = counter.weight;
+    // XXX update height
+    // XXX update sex (incl. diagram)
+    updateSummary();
+  };
+
   // Add event handlers to the buttons.
   //
   // Although it is possible to attach the event handlers in the HTML using
@@ -118,6 +126,10 @@ function initSummary() {
       }, false);
   }
 
+  // Handle changes to weight
+  document.querySelector("input[name=weight]").addEventListener("change",
+    onChangeWeight, false);
+
   // Handle submitting the different forms
   document.querySelector('#add-food form').addEventListener("submit",
       function(e) {
@@ -159,6 +171,14 @@ function resetDialog(dialog) {
   for (var i = 0; i < forms.length; i++ ) {
     forms[i].reset();
   }
+}
+
+function onChangeWeight(event) {
+  var weight = parseFloat(event.target.value);
+  if (!weight)
+    return;
+  counter.setWeight(weight);
+  updateSummary();
 }
 
 function addFood() {
@@ -359,6 +379,7 @@ CalorieCounter = function() {
   this.spentToday    = 0;
   this.bmr           = 8000;
   this._db           = null;
+  this.weight        = null;
 
   this.__defineGetter__("kjOut", function() {
     return this.bmr + this.spentToday;
@@ -372,9 +393,28 @@ CalorieCounter = function() {
   this.__defineGetter__("kcalIn", function() {
     return this.kjIn / this.KJ_PER_KCAL;
   });
+
+  this.init();
 }
 
 CalorieCounter.prototype.KJ_PER_KCAL = 4.2;
+
+CalorieCounter.prototype.init = function() {
+  this._getDb(
+    function(db) {
+      var trans = db.transaction(["weightLog", "settings"]);
+      if (this.oninit)
+        trans.oncomplete = this.oninit;
+      trans.objectStore("weightLog").openCursor(null, "prev").onsuccess =
+        function(event) {
+        var cursor = event.target.result;
+        if (cursor) {
+          this.weight = cursor.value.weight;
+        }
+      }.bind(this);
+    }.bind(this)
+  );
+}
 
 CalorieCounter.prototype.addActivity = function(amount, unit) {
   if (typeof unit !== "undefined" && unit.toLowerCase() === "kcal")
@@ -392,10 +432,24 @@ CalorieCounter.prototype.addFood = function(food, quantity, amount, unit,
     type: "food",
     food: food,
     quantity: quantity,
-    kj: amount,
-    time: Date.now()
+    kj: amount
   };
   this._addLog(log, onsuccess);
+}
+
+CalorieCounter.prototype.setWeight = function(weight) {
+  // XXX Re-calculate BMR
+  var entry = {
+    localDate: this._getLocalDate(),
+    weight: weight
+  };
+  this._getDb(
+    function(db) {
+      db.transaction(["weightLog"], "readwrite").objectStore("weightLog").
+        put(entry);
+    }
+  );
+  this.weight = weight;
 }
 
 window.indexedDB = window.indexedDB || window.mozIndexedDB ||
@@ -403,9 +457,9 @@ window.indexedDB = window.indexedDB || window.mozIndexedDB ||
 window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange ||
                      window.msIDBKeyRange;
 
-CalorieCounter.prototype._doLogTransaction = function(onsuccess) {
+CalorieCounter.prototype._getDb = function(onsuccess) {
   if (!this._db) {
-    var request = window.indexedDB.open("CalorieCounter", 2);
+    var request = window.indexedDB.open("CalorieCounter", 3);
     request.onsuccess = function(event) {
       this._db = request.result;
       // Set up database-level error logging
@@ -413,27 +467,37 @@ CalorieCounter.prototype._doLogTransaction = function(onsuccess) {
         console.log(event.target.result);
       };
       onsuccess(this._db);
-    }
+    }.bind(this);
     request.onerror = function(event) {
       // Just log the error and forget about saving
       console.log(event.target.errorCode);
     }
     request.onupgradeneeded = function(event) {
       this._db = event.target.result;
-      var objectStore = null;
+      /* Log object store */
       if (event.oldVersion < 1) {
         this._db.createObjectStore("log", { autoIncrement: true });
       }
-      var objectStore = event.target.transaction.objectStore("log");
-      objectStore.createIndex("time", "time", { unique: false });
-    }
+      var log = event.target.transaction.objectStore("log");
+      if (event.oldVersion < 2) {
+        log.createIndex("time", "time", { unique: false });
+      }
+      /* Weight object store */
+      var weights =
+        this._db.createObjectStore("weightLog", { keyPath: "localDate" });
+      /* Settings object store */
+      var settings = this._db.createObjectStore("settings");
+    }.bind(this);
   } else {
     onsuccess(this._db);
   }
 }
 
 CalorieCounter.prototype._addLog = function(log, onsuccess) {
-  this._doLogTransaction(
+  var data = log;
+  data.time = Date.now();
+  data.localDate = this._getLocalDate();
+  this._getDb(
     function(db) {
       db.transaction(["log"], "readwrite").objectStore("log").add(log).
         onsuccess = function(event) {
@@ -447,10 +511,17 @@ CalorieCounter.prototype._addLog = function(log, onsuccess) {
   );
 }
 
+CalorieCounter.prototype._getLocalDate = function(log, onsuccess) {
+  // Calculate the date only (minus time component) in local time and convert to
+  // UTC.
+  var d = new Date();
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+}
+
 CalorieCounter.prototype._getLogEntriesInRange = function(start, end, onsuccess)
 {
   var entries = [];
-  this._doLogTransaction(
+  this._getDb(
     function(db) {
       var objectStore = db.transaction(["log"]).objectStore("log");
       var range = end
