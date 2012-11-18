@@ -200,7 +200,6 @@ function addFood() {
   counter.addFood(food, quantity, calories, "kcal",
     function(item) {
       // XXX update summary table
-      console.log(item);
     });
   hideDialog(document.getElementById('add-food'));
   updateSummary();
@@ -812,7 +811,7 @@ CalorieCounter.prototype._arrangeFullLog =
     var day = {};
     day.date = currentDate;
     // Set weight
-    if (weights[0].localDate <= currentDate) {
+    if (weights.length && weights[0].localDate <= currentDate) {
       currentWeight = weights.shift().weight;
     }
     day.weight = currentWeight;
