@@ -294,6 +294,9 @@ function updateLog() {
     log = log.reverse();
     for (var i = 0; i < log.length; i++) {
       var entry = log[i];
+      if (entry.activities.length === 0)
+        continue;
+
       var details = document.createElement("details");
 
       // Create summary element
