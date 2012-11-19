@@ -80,6 +80,8 @@ function initTabs() {
         e.preventDefault();
 
         // Play tab switch sound if available
+        // TASK(e-1): Read the value from localStorage to see if mute is set or
+        // not. If it is, don't play the sound below.
         var sfx = document.getElementById('tabSwitchSound');
         if (sfx && sfx.currentSrc)
           sfx.play();
@@ -203,6 +205,8 @@ function addFood() {
     });
   hideDialog(document.getElementById('add-food'));
   updateSummary();
+  // TASK(e-2): Read the value from localStorage to see if mute is set or
+  // not. If it is, don't play the sound below.
   var rise = document.getElementById('riseSound');
   if (rise.currentSrc)
     rise.play();
@@ -213,6 +217,12 @@ function addActivity() {
   counter.addActivity(2000, "kcal");
   hideDialog(document.getElementById('add-activity'));
   updateSummary();
+  // TASK(e-3): Read the value from localStorage to see if mute is set or
+  // not. If it is, don't play the sound below.
+  //
+  // NOTE: Using localStorage can be slow. Since the state of the checkbox
+  // should match what is stored in localStorage, perhaps you could just check
+  // if the checkbox is ticked or not?
   var fall = document.getElementById('fallSound');
   if (fall.currentSrc)
     fall.play();
@@ -388,6 +398,25 @@ function initSettings() {
     var radio = genderRadios[i];
     radio.addEventListener("change", onChangeGender, false);
   }
+
+  // TASK(b): Listen to changes to the mute checkbox here
+  // You will need to call a function whenever the "change" event fires.
+
+  // TASK(c): Write the function that is called when the checkbox changes.
+  // It should checks whether the checkbox is set or not and save the result to
+  // localStorage.
+  // You might need to look up how to test whether a checkbox is checked or not.
+
+  // TASK(d): Add some code here that checks the value stored in localStorage
+  // (if any). If there is a value stored there that says the checkbox is
+  // checked then check it here.
+  //
+  // NOTE: When you reload a page, browsers normally remember the "state" of
+  // forms. That means, if you tick a checkbox and reload the page, it will
+  // remain ticked automatically. To test if your code is actually working you
+  // will need to do a "Force reload". You can do this by holding Shift while
+  // clicking reload. To be really sure, try closing the browser and re-opening
+  // it. If your code works it should remember the state of the checkbox.
 
   // If the browser is capable of installing Web apps, enable the button
   if (navigator.mozApps) {
