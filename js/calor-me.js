@@ -290,7 +290,7 @@ function updateLog() {
     logs[i].parentNode.removeChild(logs[i]);
   }
   // Get log
-  counter.getLast7Days(function(log) {
+  counter.getLast7DaysLog(function(log) {
     log = log.reverse();
     for (var i = 0; i < log.length; i++) {
       var entry = log[i];
@@ -622,18 +622,10 @@ CalorieCounter.prototype.KJ_PER_KCAL = 4.2;
 CalorieCounter.prototype.init = function() {
   this._getDb(
     function(db) {
-      var trans = db.transaction(["weightLog", "settings"]);
-      if (this.oninit)
-        trans.oncomplete = this.oninit;
-      // Get latest recorded weight
-      trans.objectStore("weightLog").openCursor(null, "prev").onsuccess =
-        function(event) {
-        var cursor = event.target.result;
-        if (cursor) {
-          this.weight = cursor.value.weight;
-        }
-      }.bind(this);
-      // Load settings
+      // Load settings first since they are needed to calculate the BMR when the
+      // load today's data
+      var trans = db.transaction(["settings"]);
+      trans.oncomplete = this._initDailySummary.bind(this);
       var settings = trans.objectStore("settings");
       ['height', 'dob', 'gender'].forEach(
         function(name) {
@@ -645,6 +637,20 @@ CalorieCounter.prototype.init = function() {
       );
     }.bind(this)
   );
+}
+
+CalorieCounter.prototype._initDailySummary = function() {
+  this.getTodaysLog(function(log) {
+    console.assert(log.length === 1, "Unexpected log length");
+    log = log[0];
+    this._spentToday    = log.kjOut - log.bmr;
+    this._consumedToday = log.kjIn;
+    this._bmr           = log.bmr;
+    this._weight        = log.weight;
+
+    if (this.oninit)
+      this.oninit();
+  }.bind(this));
 }
 
 CalorieCounter.prototype.addActivity = function(amount, unit) {
@@ -794,7 +800,7 @@ CalorieCounter.prototype._getLogEntriesInRange = function(start, end, onsuccess)
         var cursor = event.target.result;
         if (cursor) {
           // Check the event actually did happen in the specified range
-          if (cursor.value.localDate > start &&
+          if (cursor.value.localDate >= start &&
               (!end || cursor.value.localDate < end)) {
             entries.push(cursor.value);
           }
@@ -837,10 +843,18 @@ CalorieCounter.prototype._getWeightsForRange = function(start, end, onsuccess) {
 
 // This is just a temporary convenience method until we find a better way of
 // handling dates
-CalorieCounter.prototype.getLast7Days = function(onsuccess) {
+CalorieCounter.prototype.getLast7DaysLog = function(onsuccess) {
   var oneDay = 24*60*60*1000;
   var start  = this._getLocalDate() - 6 * oneDay;
   var end    = start + 7 * oneDay;
+  this._getFullLogForRange(start, end, onsuccess);
+};
+
+// This too is just temporary
+CalorieCounter.prototype.getTodaysLog = function(onsuccess) {
+  var oneDay = 24*60*60*1000;
+  var start  = this._getLocalDate();
+  var end    = start + oneDay;
   this._getFullLogForRange(start, end, onsuccess);
 };
 
