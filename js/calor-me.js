@@ -201,7 +201,10 @@ function addFood() {
   var calories = parseFloat(foodForm['calorie-count'].value);
   counter.addFood(food, quantity, calories, "kcal",
     function(item) {
-      // XXX update summary table
+      // XXX This should just add the item to the table
+      // Currently we're regenerating the entire table every time just for
+      // demonstration purposes.
+      updateLog();
     });
   hideDialog(document.getElementById('add-food'));
   updateSummary();
@@ -319,7 +322,7 @@ function getLogLevelClass(level) {
   return level < OK_CUTOFF
     ? "under"
     : level < BAD_CUTOFF
-    ? "equal" : "plus";
+    ? "equal" : "over";
 }
 
 function getTimeElementForDate(utcdate) {
